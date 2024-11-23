@@ -1,5 +1,6 @@
 import simpy
 import random
+import numpy as np
 
 from network_config import transition_matrix, node_config
 from node import Node
@@ -29,6 +30,23 @@ def process(env: simpy.Environment, name: str, process_type: str, current_node: 
         current_node = next_node
 
 
+def generate_processes(env: simpy.Environment, num_processes: int, arrival_rate: float, nodes: dict) -> None:
+    """
+    Generates new processes at random intervals based on a Poisson distribution.
+    
+    :param env: The simulation environment.
+    :param num_processes: Total number of processes to simulate.
+    :param arrival_rate: The rate (lambda) for the Poisson distribution.
+    :param nodes: Dictionary of nodes in the network.
+    """
+    process_id = 1
+    while process_id <= num_processes:
+        process_type = random.choice(["user", "system"])  # Randomly choose process type
+        yield env.timeout(np.random.poisson(1/arrival_rate))  # Poisson inter-arrival times
+        env.process(process(env, f"Process-{process_id}", process_type, "User", nodes))  # Start the process
+        process_id += 1
+
+
 def run_simulation() -> None:
     """
     Runs the network simulation, processes tasks, and generates statistics and plots.
@@ -44,15 +62,14 @@ def run_simulation() -> None:
     """
     SIM_TIME = 1000  # Simulation time
     NUM_PROCESSES = 1000  # Number of processes to simulate
+    ARRIVAL_RATE = 10  # Average number of processes arriving per unit time (Poisson distribution)
 
     # Initialize the simulation environment and nodes
     env = simpy.Environment()
     nodes = {name: Node(env, name, **node_config[name]) for name in node_config.keys()}
 
-    # Create processes for each task
-    for i in range(NUM_PROCESSES):
-        process_type = random.choice(["user", "system"])  # Randomly choose process type
-        env.process(process(env, f"Process-{i+1}", process_type, "User", nodes))  # Start the process
+    # Start generating processes based on Poisson distribution
+    env.process(generate_processes(env, NUM_PROCESSES, ARRIVAL_RATE, nodes))
 
     # Run the simulation until the specified time
     env.run(until=SIM_TIME)
