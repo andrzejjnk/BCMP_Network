@@ -38,12 +38,12 @@ transition_matrix = {
 
 # Node configuration with queue types and server counts
 node_config = {
-    "User": {"num_servers": 0, "queue_type": "IS"},
-    "CPU Scheduler": {"num_servers": 2, "queue_type": "FIFO"},
-    "IO Disk": {"num_servers": 1, "queue_type": "FIFO"},
-    "IO Network": {"num_servers": 1, "queue_type": "FIFO"},
-    "CPU": {"num_servers": 2, "queue_type": "FIFO"},
-    "Memory": {"num_servers": 0, "queue_type": "IS"},
-    "System": {"num_servers": 1, "queue_type": "FIFO"},
-    "End": {"num_servers": 0, "queue_type": "IS"},
+    "User": {"num_servers": 0, "queue_type": "IS", "lambda_value": 1.0},
+    "CPU Scheduler": {"num_servers": 2, "queue_type": "FIFO", "lambda_value": 1.0},
+    "IO Disk": {"num_servers": 1, "queue_type": "FIFO", "lambda_value": 1.0},
+    "IO Network": {"num_servers": 1, "queue_type": "FIFO", "lambda_value": 1.0},
+    "CPU": {"num_servers": 2, "queue_type": "FIFO", "lambda_value": 1.0},
+    "Memory": {"num_servers": 0, "queue_type": "IS", "lambda_value": 1.0},
+    "System": {"num_servers": 1, "queue_type": "FIFO", "lambda_value": 1.0},
+    "End": {"num_servers": 0, "queue_type": "IS", "lambda_value": 1.0},
 }

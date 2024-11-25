@@ -3,14 +3,12 @@
 import simpy
 import random
 
-LAMBDA = 1.0
-
 class Node:
     """
     Class representing a node in the network.
     Each node can either process or pass through processes depending on the configuration.
     """
-    def __init__(self, env, name, num_servers, queue_type):
+    def __init__(self, env, name, num_servers, queue_type, lambda_value):
         """
         Initializes the Node with the given parameters.
         
@@ -21,6 +19,7 @@ class Node:
         """
         self.env = env
         self.name = name
+        self.lambda_value = lambda_value
         self.num_servers = num_servers
         self.queue_type = queue_type
         self.queue = simpy.Resource(env, capacity=num_servers) if queue_type == "FIFO" else None
@@ -73,7 +72,7 @@ class Node:
                     self.waiting_times_system.append(waiting_time)
 
                 # Service time using exponential distribution
-                yield self.env.timeout(random.expovariate(LAMBDA))
+                yield self.env.timeout(random.expovariate(self.lambda_value))
                 self.log_queue_length()  # Update queue length after service
 
         elif self.queue_type == "IS":

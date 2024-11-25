@@ -6,10 +6,7 @@ import numpy as np
 from network_config import transition_matrix, node_config
 from node import Node
 from plots import plot_average_waiting_times_per_node, plot_processed_processes_per_node, plot_queue_lengths_over_time, plot_time_spent_in_network_histogram
-from stats import calculate_network_stats
 
-
-import numpy as np
 
 def process(
     env: simpy.Environment,
@@ -106,7 +103,7 @@ def run_simulation(
     num_processes: int,
     arrival_rate: float,
     transfer_delay_distribution: str = "normal",
-    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
+    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001},
 ) -> None:
     """
     Runs the network simulation, processes tasks, and generates statistics and plots.
@@ -160,7 +157,8 @@ def main():
     # Sidebar inputs for simulation parameters
     sim_time = st.sidebar.number_input("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
     num_processes = st.sidebar.number_input("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
-    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes/Unit Time)", min_value=0.1, max_value=50.0, step=0.1, value=10.0)
+    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes/Unit Time)", min_value=0.01, max_value=50.0, step=0.01, value=10.0)
+    #lambda_value = st.sidebar.number_input("Service time (lambda parameter for exponential distribution)", min_value=0.01, max_value=10.0, step=0.1, value=1.0)
 
     # Sidebar inputs for transfer delay distribution
     st.sidebar.header("Transfer Delay Parameters")
@@ -210,6 +208,25 @@ def main():
                                         format="%.6f")
         transfer_delay_params = {"low": low, "high": high}
 
+    # Sidebar for lambda configuration
+    st.sidebar.subheader("Node Service Time Configuration")
+    node_lambdas = {}
+    for node_name in node_config.keys():
+        if node_config[node_name]["queue_type"] == "FIFO":
+            lambda_value = st.sidebar.number_input(
+                f"Service Time Lambda ({node_name})",
+                min_value=0.1,
+                max_value=100.0,
+                step=0.1,
+                value=node_config[node_name]["lambda_value"]
+            )
+            node_lambdas[node_name] = lambda_value
+
+    # Update node_config with user-defined lambdas
+    for node_name in node_config.keys():
+        if node_config[node_name]["queue_type"] == "FIFO":
+            node_config[node_name]["lambda_value"] = node_lambdas[node_name]
+
 
     # Run simulation button
     if st.sidebar.button("Run Simulation"):
@@ -224,11 +241,10 @@ def main():
             num_processes=num_processes,
             arrival_rate=arrival_rate,
             transfer_delay_distribution=transfer_delay_distribution,
-            transfer_delay_params=transfer_delay_params
+            transfer_delay_params=transfer_delay_params,
         )
         nodes = results["nodes"]
         statistics = results["statistics"]
-
         # Display statistics
         st.write("#### Processed Processes per Node:")
         stats_table = []
@@ -249,6 +265,35 @@ def main():
         # Histogram of times spent in the network
         st.write("Histogram of Times Spent in the Network")
         plot_time_spent_in_network_histogram(nodes)
+
+        # Calculate and display network statistics
+        st.write("### Detailed Network Statistics")
+        with st.expander("View Network Statistics"):
+            stats_output = []
+            for name, node in nodes.items():
+                if node.queue_type == "FIFO":
+                    # Calculate average waiting time
+                    avg_waiting_time_user = sum(node.waiting_times_user) / len(node.waiting_times_user) if node.waiting_times_user else 0
+                    avg_waiting_time_system = sum(node.waiting_times_system) / len(node.waiting_times_system) if node.waiting_times_system else 0
+
+                    # Calculate arrival rate (number of processes / total simulation time
+                    arrival_rate_user = node.processed_user / sim_time if sim_time > 0 else 0
+                    arrival_rate_system = node.processed_system / sim_time if sim_time > 0 else 0
+
+                    # Average queue length using Little's Law
+                    avg_queue_length_user = arrival_rate_user * avg_waiting_time_user if avg_waiting_time_user > 0 else 0
+                    avg_queue_length_system = arrival_rate_system * avg_waiting_time_system if avg_waiting_time_system > 0 else 0
+
+                    stats_output.append(f"Node {name}:\n"
+                                        f"  Average Queue Length (User): {avg_queue_length_user:.2f}\n"
+                                        f"  Average Queue Length (System): {avg_queue_length_system:.2f}\n"
+                                        f"  Arrival Rate (User): {arrival_rate_user:.2f}\n"
+                                        f"  Arrival Rate (System): {arrival_rate_system:.2f}\n"
+                                        f"  Average Waiting Time (User): {avg_waiting_time_user:.2f}\n"
+                                        f"  Average Waiting Time (System): {avg_waiting_time_system:.2f}\n")
+            
+            for stats in stats_output:
+                st.text(stats)
 
 
 
