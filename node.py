@@ -36,6 +36,9 @@ class Node:
         self.queue_log_system = []  # Queue length for system processes over time
         self.time_log = []  # Time stamps
 
+        self.entry_times = {}  # Dictionary to store entry times of processes
+        self.exit_times = {}   # Dictionary to store exit times of processes
+
 
     def log_queue_length(self):
         """

@@ -5,11 +5,21 @@ import numpy as np
 
 from network_config import transition_matrix, node_config
 from node import Node
-from plots import plot_average_waiting_times_per_node, plot_processed_processes_per_node, plot_queue_lengths_over_time
+from plots import plot_average_waiting_times_per_node, plot_processed_processes_per_node, plot_queue_lengths_over_time, plot_time_spent_in_network_histogram
 from stats import calculate_network_stats
 
 
-def process(env: simpy.Environment, name: str, process_type: str, current_node: str, nodes: dict) -> None:
+import numpy as np
+
+def process(
+    env: simpy.Environment,
+    name: str,
+    process_type: str,
+    current_node: str,
+    nodes: dict,
+    transfer_delay_distribution: str = "normal",
+    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
+) -> None:
     """
     Simulates the process of a task moving through different nodes in the network.
 
@@ -18,17 +28,53 @@ def process(env: simpy.Environment, name: str, process_type: str, current_node: 
     :param process_type: The type of the process (either "user" or "system").
     :param current_node: The current node the process is at.
     :param nodes: A dictionary of nodes in the simulation network.
+    :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
+    :param transfer_delay_params: Parameters for the transfer delay distribution.
     """
+    entry_time = env.now if current_node == "User" else None
+
     while current_node != "End":
+        # Process the task at the current node
         yield env.process(nodes[current_node].process(process_type))
+
+        # Record entry time for "User"
+        if current_node == "User":
+            nodes[current_node].entry_times[name] = env.now
+
+        # Calculate random transfer delay
+        if transfer_delay_distribution == "normal":
+            delay = max(0, np.random.normal(transfer_delay_params["mean"], transfer_delay_params["std"]))
+        elif transfer_delay_distribution == "exponential":
+            delay = np.random.exponential(transfer_delay_params["scale"])
+        elif transfer_delay_distribution == "uniform":
+            delay = np.random.uniform(transfer_delay_params["low"], transfer_delay_params["high"])
+        else:
+            raise ValueError("Unsupported distribution type for transfer delay.")
+
+        # Simulate transfer delay
+        yield env.timeout(delay)
+
+        # Choose the next node based on the transition matrix
         next_node = random.choices(
             list(transition_matrix[current_node][process_type].keys()),
             weights=list(transition_matrix[current_node][process_type].values())
         )[0]
         current_node = next_node
 
+    # Record exit time for "End"
+    nodes["End"].exit_times[name] = env.now
 
-def generate_processes(env: simpy.Environment, num_processes: int, arrival_rate: float, nodes: dict) -> None:
+
+
+
+def generate_processes(
+    env: simpy.Environment,
+    num_processes: int,
+    arrival_rate: float,
+    nodes: dict,
+    transfer_delay_distribution: str = "normal",
+    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
+) -> None:
     """
     Generates new processes at random intervals based on a Poisson distribution.
     
@@ -41,25 +87,51 @@ def generate_processes(env: simpy.Environment, num_processes: int, arrival_rate:
     while process_id <= num_processes:
         process_type = random.choice(["user", "system"])  # Randomly choose process type
         yield env.timeout(np.random.poisson(1 / arrival_rate))  # Poisson inter-arrival times
-        env.process(process(env, f"Process-{process_id}", process_type, "User", nodes))
+        env.process(
+            process(
+                env,
+                f"Process-{process_id}",
+                process_type, 
+                "User",
+                nodes,
+                transfer_delay_distribution,
+                transfer_delay_params
+            )
+        )
         process_id += 1
 
 
-def run_simulation(sim_time: int, num_processes: int, arrival_rate: float) -> dict:
+def run_simulation(
+    sim_time: int,
+    num_processes: int,
+    arrival_rate: float,
+    transfer_delay_distribution: str = "normal",
+    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
+) -> None:
     """
-    Runs the network simulation and returns the results.
+    Runs the network simulation, processes tasks, and generates statistics and plots.
 
-    :param sim_time: Total simulation time.
-    :param num_processes: Number of processes to simulate.
-    :param arrival_rate: Rate (lambda) for the Poisson distribution of process arrivals.
-    :return: A dictionary with simulation results, including nodes and statistics.
+    :param sim_time: The total simulation time.
+    :param num_processes: The number of processes to simulate.
+    :param arrival_rate: The rate at which new processes arrive in the system.
+    :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
+    :param transfer_delay_params: Parameters for the transfer delay distribution.
     """
     # Initialize the simulation environment and nodes
     env = simpy.Environment()
     nodes = {name: Node(env, name, **node_config[name]) for name in node_config.keys()}
 
     # Start generating processes
-    env.process(generate_processes(env, num_processes, arrival_rate, nodes))
+    env.process(
+        generate_processes(
+            env,
+            num_processes,
+            arrival_rate,
+            nodes,
+            transfer_delay_distribution=transfer_delay_distribution,
+            transfer_delay_params=transfer_delay_params
+        )
+    )
 
     # Run the simulation
     env.run(until=sim_time)
@@ -79,20 +151,81 @@ def main():
     Main function to run the Streamlit app.
     """
     st.title("BCMP Network Simulation")
+    bcmp_model_png = "BCMP_Network_Model.png"
+    
+    # Wyświetlenie obrazu z podpisem
+    st.image(bcmp_model_png, caption="BCMP Network Model", use_column_width=True)
     st.sidebar.header("Simulation Parameters")
 
-    # Sidebar inputs
-    sim_time = st.sidebar.slider("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
-    num_processes = st.sidebar.slider("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
-    arrival_rate = st.sidebar.slider("Arrival Rate (Processes/Unit Time)", min_value=0.1, max_value=50.0, step=0.1, value=10.0)
+    # Sidebar inputs for simulation parameters
+    sim_time = st.sidebar.number_input("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
+    num_processes = st.sidebar.number_input("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
+    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes/Unit Time)", min_value=0.1, max_value=50.0, step=0.1, value=10.0)
+
+    # Sidebar inputs for transfer delay distribution
+    st.sidebar.header("Transfer Delay Parameters")
+    transfer_delay_distribution = st.sidebar.selectbox(
+        "Transfer Delay Distribution",
+        options=["normal", "exponential", "uniform"],
+        index=0
+    )
+
+    # Set parameters based on the chosen distribution
+    if transfer_delay_distribution == "normal":
+        mean = st.sidebar.number_input("Mean (Normal)", 
+                                        min_value=0.001, 
+                                        max_value=1.0, 
+                                        value=0.001, 
+                                        step=0.001, 
+                                        format="%.3f")
+        std = st.sidebar.number_input("Standard Deviation (Normal)", 
+                                    min_value=0.000010, 
+                                    max_value=1.0, 
+                                    value=0.000010, 
+                                    step=0.000010, 
+                                    format="%.6f")
+        transfer_delay_params = {"mean": mean, "std": std}
+
+    elif transfer_delay_distribution == "exponential":
+        scale = st.sidebar.number_input("Scale (Exponential)", 
+                                        min_value=0.001, 
+                                        max_value=1.0, 
+                                        value=0.001, 
+                                        step=0.000010, 
+                                        format="%.6f")
+        transfer_delay_params = {"scale": scale}
+
+    elif transfer_delay_distribution == "uniform":
+        low = st.sidebar.number_input("Low (Uniform)", 
+                                    min_value=0.001, 
+                                    max_value=1.0, 
+                                    value=0.001, 
+                                    step=0.000001, 
+                                    format="%.6f")
+        high = st.sidebar.number_input("High (Uniform)", 
+                                        min_value=0.001, 
+                                        max_value=1.0, 
+                                        value=0.001, 
+                                        step=0.000001, 
+                                        format="%.6f")
+        transfer_delay_params = {"low": low, "high": high}
+
 
     # Run simulation button
     if st.sidebar.button("Run Simulation"):
         st.write("### Simulation Results")
         st.write(f"Simulation Time: {sim_time}, Number of Processes: {num_processes}, Arrival Rate: {arrival_rate}")
+        st.write(f"Transfer Delay Distribution: {transfer_delay_distribution}")
+        st.write(f"Transfer Delay Parameters: {transfer_delay_params}")
 
         # Run the simulation
-        results = run_simulation(sim_time, num_processes, arrival_rate)
+        results = run_simulation(
+            sim_time=sim_time,
+            num_processes=num_processes,
+            arrival_rate=arrival_rate,
+            transfer_delay_distribution=transfer_delay_distribution,
+            transfer_delay_params=transfer_delay_params
+        )
         nodes = results["nodes"]
         statistics = results["statistics"]
 
@@ -112,6 +245,11 @@ def main():
 
         st.write("#### Processed Processes Per Node:")
         plot_processed_processes_per_node(nodes)
+
+        # Histogram of times spent in the network
+        st.write("Histogram of Times Spent in the Network")
+        plot_time_spent_in_network_histogram(nodes)
+
 
 
 if __name__ == "__main__":

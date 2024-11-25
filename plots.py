@@ -170,3 +170,31 @@ def plot_processed_processes_per_node(nodes: Dict[str, 'Node']) -> None:
 
     # Render in Streamlit
     st.pyplot(fig)
+
+
+def plot_time_spent_in_network_histogram(nodes: Dict[str, 'Node']) -> None:
+    """
+    Plots a histogram of the time spent in the network for processes.
+
+    :param nodes: A dictionary of nodes, where the key is the node name and the value is the node object.
+    """
+    entry_times = nodes["User"].entry_times
+    exit_times = nodes["End"].exit_times
+
+    # Calculate times spent in the network
+    network_times = [
+        exit_times[process] - entry_times[process]
+        for process in exit_times.keys()
+        if process in entry_times
+    ]
+
+    # Create histogram
+    plt.figure(figsize=(10, 6))
+    plt.hist(network_times, bins=20, color="#3498db", edgecolor="black", alpha=0.7)
+    plt.title("Histogram of Times Spent in the Network")
+    plt.xlabel("Time in Network")
+    plt.ylabel("Number of Processes")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+
+    # Render histogram in Streamlit
+    st.pyplot(plt.gcf())
