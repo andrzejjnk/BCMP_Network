@@ -3,10 +3,10 @@
 # Transition matrix describing the system
 transition_matrix = {
     "User": {
-        "user": {"CPU Scheduler": 1.0},
-        "system": {"CPU Scheduler": 1.0},
+        "user": {"Process Scheduler": 1.0},
+        "system": {"Process Scheduler": 1.0},
     },
-    "CPU Scheduler": {
+    "Process Scheduler": {
         "user": {"IO Disk": 0.25, "IO Network": 0.15, "CPU": 0.6},
         "system": {"IO Disk": 0.4, "IO Network": 0.2, "CPU": 0.4},
     },
@@ -27,8 +27,8 @@ transition_matrix = {
         "system": {"End": 1.0},
     },
     "System": {
-        "user": {"CPU Scheduler": 0.9, "End": 0.1},
-        "system": {"CPU Scheduler": 0.8, "End": 0.2},
+        "user": {"Process Scheduler": 0.9, "End": 0.1},
+        "system": {"Process Scheduler": 0.8, "End": 0.2},
     },
     "End": {
         "user": {},
@@ -39,7 +39,7 @@ transition_matrix = {
 # Node configuration with queue types and server counts
 node_config = {
     "User": {"num_servers": 0, "queue_type": "IS", "lambda_value": 1.0},
-    "CPU Scheduler": {"num_servers": 2, "queue_type": "FIFO", "lambda_value": 1.0},
+    "Process Scheduler": {"num_servers": 2, "queue_type": "FIFO", "lambda_value": 1.0},
     "IO Disk": {"num_servers": 1, "queue_type": "FIFO", "lambda_value": 1.0},
     "IO Network": {"num_servers": 1, "queue_type": "FIFO", "lambda_value": 1.0},
     "CPU": {"num_servers": 2, "queue_type": "FIFO", "lambda_value": 1.0},

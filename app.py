@@ -157,8 +157,7 @@ def main():
     # Sidebar inputs for simulation parameters
     sim_time = st.sidebar.number_input("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
     num_processes = st.sidebar.number_input("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
-    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes/Unit Time)", min_value=0.01, max_value=50.0, step=0.01, value=10.0)
-    #lambda_value = st.sidebar.number_input("Service time (lambda parameter for exponential distribution)", min_value=0.01, max_value=10.0, step=0.1, value=1.0)
+    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes entering to the system/Unit Time)", min_value=0.01, max_value=50.0, step=0.01, value=10.0)
 
     # Sidebar inputs for transfer delay distribution
     st.sidebar.header("Transfer Delay Parameters")
