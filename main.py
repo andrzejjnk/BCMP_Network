@@ -46,7 +46,7 @@ def generate_processes(env: simpy.Environment, num_processes: int, arrival_rate:
         env.process(process(env, f"Process-{process_id}", process_type, "User", nodes))  # Start the process
         process_id += 1
 
-
+# Zrobic sredni czas przejscia od węzła początkowego do końca dla każdego procesu, dorobić jakieś ywkresy, histogramy
 def run_simulation() -> None:
     """
     Runs the network simulation, processes tasks, and generates statistics and plots.

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Dict
+import streamlit as st
 
 
 def plot_queue_lengths_over_time(nodes: Dict[str, 'Node']) -> None:
@@ -33,7 +34,7 @@ def plot_queue_lengths_over_time(nodes: Dict[str, 'Node']) -> None:
             axes[1].grid()
 
             plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout
-            plt.show()
+            st.pyplot(fig)  # Render in Streamlit
 
 
 def plot_average_waiting_times_per_node(nodes: Dict[str, 'Node']) -> None:
@@ -58,32 +59,34 @@ def plot_average_waiting_times_per_node(nodes: Dict[str, 'Node']) -> None:
     # Plot average waiting times in FIFO (distinguishing process types)
     x = np.arange(len(fifo_node_names))
     width = 0.4  # Bar width
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     # Create bars for user processes
-    bars_user = plt.bar(x - width / 2, avg_waiting_times_user, width=width, label="User Processes", color="#A50040")
-    bars_system = plt.bar(x + width / 2, avg_waiting_times_system, width=width, label="System Processes", color="#005700")
+    bars_user = ax.bar(x - width / 2, avg_waiting_times_user, width=width, label="User Processes", color="#A50040")
+    bars_system = ax.bar(x + width / 2, avg_waiting_times_system, width=width, label="System Processes", color="#005700")
 
     # Add labels above bars
     for bar in bars_user:
-        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
                 f"{bar.get_height():.1f}", ha='center', va='bottom', fontsize=10)
 
     for bar in bars_system:
-        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
                 f"{bar.get_height():.1f}", ha='center', va='bottom', fontsize=10)
 
     # Adjust x-axis labels
-    plt.xticks(x, fifo_node_names, rotation=45)
+    ax.set_xticks(x)
+    ax.set_xticklabels(fifo_node_names, rotation=45)
 
     # Labels and title
-    plt.ylabel("Average Waiting Time")
-    plt.title("Average Waiting Time in Queue (FIFO) - Process Types")
-    plt.legend()
+    ax.set_ylabel("Average Waiting Time")
+    ax.set_title("Average Waiting Time in Queue (FIFO) - Process Types")
+    ax.legend()
     plt.tight_layout()
 
-    # Show plot
-    plt.show()
+    # Render in Streamlit
+    st.pyplot(fig)
+
 
     # Waiting time histograms distinguishing process types
     for name, node in nodes.items():
@@ -109,7 +112,8 @@ def plot_average_waiting_times_per_node(nodes: Dict[str, 'Node']) -> None:
             # Adjust layout and display
             fig.suptitle(f"Waiting Time Histograms: {name}", fontsize=14)  # Shared title for both plots
             plt.tight_layout(rect=[0, 0, 1, 0.95])  # Add space for shared title
-            plt.show()
+            st.pyplot(fig)
+
 
 
 def plot_processed_processes_per_node(nodes: Dict[str, 'Node']) -> None:
@@ -135,33 +139,34 @@ def plot_processed_processes_per_node(nodes: Dict[str, 'Node']) -> None:
     bar_width = 0.4  # Bar width
 
     # Create plot
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     # Bars for user processes (shifted by -bar_width/2)
-    user_bars = plt.bar(x - bar_width/2, processed_user_counts, width=bar_width, label="User Processes", color="#A50040")
+    user_bars = ax.bar(x - bar_width/2, processed_user_counts, width=bar_width, label="User Processes", color="#A50040")
 
     # Bars for system processes (shifted by +bar_width/2)
-    system_bars = plt.bar(x + bar_width/2, processed_system_counts, width=bar_width, label="System Processes", color="#005700")
+    system_bars = ax.bar(x + bar_width/2, processed_system_counts, width=bar_width, label="System Processes", color="#005700")
 
     # Add node names on x-axis
-    plt.xticks(x, node_names, rotation=45)
+    ax.set_xticks(x)
+    ax.set_xticklabels(node_names, rotation=45)
 
     # Labels and title
-    plt.ylabel("Number of Processes")
-    plt.title("Processed Processes in Each Node")
+    ax.set_ylabel("Number of Processes")
+    ax.set_title("Processed Processes in Each Node")
 
     # Show values on top of bars
     for bar in user_bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2, height + 0.5, f"{int(height)}", ha='center', va='bottom', color="#A50040", fontsize=9)
+        ax.text(bar.get_x() + bar.get_width() / 2, height + 0.5, f"{int(height)}", ha='center', va='bottom', color="#A50040", fontsize=9)
 
     for bar in system_bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2, height + 0.5, f"{int(height)}", ha='center', va='bottom', color="#005700", fontsize=9)
+        ax.text(bar.get_x() + bar.get_width() / 2, height + 0.5, f"{int(height)}", ha='center', va='bottom', color="#005700", fontsize=9)
 
     # Legend and layout
-    plt.legend()
+    ax.legend()
     plt.tight_layout()
 
-    # Show plot
-    plt.show()
+    # Render in Streamlit
+    st.pyplot(fig)
