@@ -47,6 +47,7 @@ def plot_average_waiting_times_per_node(nodes: Dict[str, 'Node']) -> None:
     fifo_nodes = [node for node in nodes.values() if node.queue_type == "FIFO"]
     fifo_node_names = [name for name, node in nodes.items() if node.queue_type == "FIFO"]
     
+    # Calculate average waiting times for user and system processes
     avg_waiting_times_user = [
         (sum(node.waiting_times_user) / len(node.waiting_times_user) if node.waiting_times_user else 0)
         for node in fifo_nodes
@@ -56,35 +57,71 @@ def plot_average_waiting_times_per_node(nodes: Dict[str, 'Node']) -> None:
         for node in fifo_nodes
     ]
 
-    # Plot average waiting times in FIFO (distinguishing process types)
+    # X positions for bars
     x = np.arange(len(fifo_node_names))
-    width = 0.4  # Bar width
+    bar_width = 0.4  # Width of the bars
+
+    # Create the plot
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Create bars for user processes
-    bars_user = ax.bar(x - width / 2, avg_waiting_times_user, width=width, label="User Processes", color="#A50040")
-    bars_system = ax.bar(x + width / 2, avg_waiting_times_system, width=width, label="System Processes", color="#005700")
+    # Bars for user processes
+    user_bars = ax.bar(
+        x - bar_width / 2,
+        avg_waiting_times_user,
+        width=bar_width,
+        label="User Processes",
+        color="#A50040"
+    )
+
+    # Bars for system processes
+    system_bars = ax.bar(
+        x + bar_width / 2,
+        avg_waiting_times_system,
+        width=bar_width,
+        label="System Processes",
+        color="#005700"
+    )
 
     # Add labels above bars
-    for bar in bars_user:
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
-                f"{bar.get_height():.1f}", ha='center', va='bottom', fontsize=10)
+    for bar in user_bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + (0.001 if height > 0 else 0),  # Slightly above the bar
+            f"{height:.2f}",
+            ha='center',
+            va='bottom',
+            color="#A50040",
+            fontsize=9
+        )
 
-    for bar in bars_system:
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 
-                f"{bar.get_height():.1f}", ha='center', va='bottom', fontsize=10)
+    for bar in system_bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + (0.001 if height > 0 else 0),  # Slightly above the bar
+            f"{height:.2f}",
+            ha='center',
+            va='bottom',
+            color="#005700",
+            fontsize=9
+        )
 
-    # Adjust x-axis labels
+    # Set x-axis labels
     ax.set_xticks(x)
     ax.set_xticklabels(fifo_node_names, rotation=45)
 
     # Labels and title
     ax.set_ylabel("Average Waiting Time")
     ax.set_title("Average Waiting Time in Queue (FIFO) - Process Types")
+
+    # Add legend
     ax.legend()
+
+    # Adjust layout
     plt.tight_layout()
 
-    # Render in Streamlit
+    # Render the plot in Streamlit
     st.pyplot(fig)
 
 

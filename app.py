@@ -1,146 +1,9 @@
 import streamlit as st
-import simpy
-import random
-import numpy as np
 
-from network_config import transition_matrix, node_config
+from network_config import node_config
 from node import Node
 from plots import plot_average_waiting_times_per_node, plot_processed_processes_per_node, plot_queue_lengths_over_time, plot_time_spent_in_network_histogram
-
-
-def process(
-    env: simpy.Environment,
-    name: str,
-    process_type: str,
-    current_node: str,
-    nodes: dict,
-    transfer_delay_distribution: str = "normal",
-    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
-) -> None:
-    """
-    Simulates the process of a task moving through different nodes in the network.
-
-    :param env: The simulation environment.
-    :param name: The name of the process.
-    :param process_type: The type of the process (either "user" or "system").
-    :param current_node: The current node the process is at.
-    :param nodes: A dictionary of nodes in the simulation network.
-    :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
-    :param transfer_delay_params: Parameters for the transfer delay distribution.
-    """
-    entry_time = env.now if current_node == "User" else None
-
-    while current_node != "End":
-        # Process the task at the current node
-        yield env.process(nodes[current_node].process(process_type))
-
-        # Record entry time for "User"
-        if current_node == "User":
-            nodes[current_node].entry_times[name] = env.now
-
-        # Calculate random transfer delay
-        if transfer_delay_distribution == "normal":
-            delay = max(0, np.random.normal(transfer_delay_params["mean"], transfer_delay_params["std"]))
-        elif transfer_delay_distribution == "exponential":
-            delay = np.random.exponential(transfer_delay_params["scale"])
-        elif transfer_delay_distribution == "uniform":
-            delay = np.random.uniform(transfer_delay_params["low"], transfer_delay_params["high"])
-        else:
-            raise ValueError("Unsupported distribution type for transfer delay.")
-
-        # Simulate transfer delay
-        yield env.timeout(delay)
-
-        # Choose the next node based on the transition matrix
-        next_node = random.choices(
-            list(transition_matrix[current_node][process_type].keys()),
-            weights=list(transition_matrix[current_node][process_type].values())
-        )[0]
-        current_node = next_node
-
-    # Record exit time for "End"
-    nodes["End"].exit_times[name] = env.now
-
-
-
-
-def generate_processes(
-    env: simpy.Environment,
-    num_processes: int,
-    arrival_rate: float,
-    nodes: dict,
-    transfer_delay_distribution: str = "normal",
-    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
-) -> None:
-    """
-    Generates new processes at random intervals based on a Poisson distribution.
-    
-    :param env: The simulation environment.
-    :param num_processes: Total number of processes to simulate.
-    :param arrival_rate: The rate (lambda) for the Poisson distribution.
-    :param nodes: Dictionary of nodes in the network.
-    """
-    process_id = 1
-    while process_id <= num_processes:
-        process_type = random.choice(["user", "system"])  # Randomly choose process type
-        yield env.timeout(np.random.poisson(1 / arrival_rate))  # Poisson inter-arrival times
-        env.process(
-            process(
-                env,
-                f"Process-{process_id}",
-                process_type, 
-                "User",
-                nodes,
-                transfer_delay_distribution,
-                transfer_delay_params
-            )
-        )
-        process_id += 1
-
-
-def run_simulation(
-    sim_time: int,
-    num_processes: int,
-    arrival_rate: float,
-    transfer_delay_distribution: str = "normal",
-    transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001},
-) -> None:
-    """
-    Runs the network simulation, processes tasks, and generates statistics and plots.
-
-    :param sim_time: The total simulation time.
-    :param num_processes: The number of processes to simulate.
-    :param arrival_rate: The rate at which new processes arrive in the system.
-    :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
-    :param transfer_delay_params: Parameters for the transfer delay distribution.
-    """
-    # Initialize the simulation environment and nodes
-    env = simpy.Environment()
-    nodes = {name: Node(env, name, **node_config[name]) for name in node_config.keys()}
-
-    # Start generating processes
-    env.process(
-        generate_processes(
-            env,
-            num_processes,
-            arrival_rate,
-            nodes,
-            transfer_delay_distribution=transfer_delay_distribution,
-            transfer_delay_params=transfer_delay_params
-        )
-    )
-
-    # Run the simulation
-    env.run(until=sim_time)
-
-    # Collect statistics
-    nodes['End'].processed_user = nodes['User'].processed_user
-    nodes['End'].processed_system = nodes['User'].processed_system
-    statistics = {
-        name: (node.processed_user, node.processed_system) for name, node in nodes.items()
-    }
-
-    return {"nodes": nodes, "statistics": statistics}
+from bcmp import run_simulation, check_ergodicity
 
 
 def main():
@@ -154,10 +17,17 @@ def main():
     st.image(bcmp_model_png, caption="BCMP Network Model", use_column_width=True)
     st.sidebar.header("Simulation Parameters")
 
+    # Initialize session state for ergodicity and change tracking
+    if "ergodicity_valid" not in st.session_state:
+        st.session_state.ergodicity_valid = False
+    if "changes_made" not in st.session_state:
+        st.session_state.changes_made = False
+
     # Sidebar inputs for simulation parameters
     sim_time = st.sidebar.number_input("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
     num_processes = st.sidebar.number_input("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
-    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes entering to the system/Unit Time)", min_value=0.01, max_value=50.0, step=0.01, value=10.0)
+    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes entering to the system/Unit Time)", min_value=0.01, max_value=100.0, step=0.01, value=10.0, on_change=lambda: st.session_state.update({"changes_made": True})
+)
 
     # Sidebar inputs for transfer delay distribution
     st.sidebar.header("Transfer Delay Parameters")
@@ -214,10 +84,12 @@ def main():
         if node_config[node_name]["queue_type"] == "FIFO":
             lambda_value = st.sidebar.number_input(
                 f"Service Time Lambda ({node_name})",
-                min_value=0.1,
+                min_value=0.001,
                 max_value=100.0,
                 step=0.1,
-                value=node_config[node_name]["lambda_value"]
+                format="%.3f",
+                value=node_config[node_name]["lambda_value"],
+                on_change=lambda: st.session_state.update({"changes_made": True})
             )
             node_lambdas[node_name] = lambda_value
 
@@ -226,9 +98,50 @@ def main():
         if node_config[node_name]["queue_type"] == "FIFO":
             node_config[node_name]["lambda_value"] = node_lambdas[node_name]
 
+    # Sidebar for number of servers configuration
+    st.sidebar.subheader("Node Server Count Configuration")
+    node_servers = {}
+    for node_name in node_config.keys():
+        if node_config[node_name]["queue_type"] == "FIFO":
+            num_servers = st.sidebar.number_input(
+                f"Number of Servers ({node_name})",
+                min_value=1,
+                max_value=100,
+                step=1,
+                value=node_config[node_name].get("num_servers", 1),  # Default to 1 server if not defined
+                on_change=lambda: st.session_state.update({"changes_made": True})
+            )
+            node_servers[node_name] = num_servers
 
-    # Run simulation button
-    if st.sidebar.button("Run Simulation"):
+    # Update node_config with user-defined number of servers
+    for node_name in node_config.keys():
+        if node_config[node_name]["queue_type"] == "FIFO":
+            node_config[node_name]["num_servers"] = node_servers[node_name]
+
+    # Check ergodicity button
+    if st.sidebar.button("Check Ergodicity"):
+        try:
+            ergodicity_valid = check_ergodicity(
+                {name: Node(None, name, **node_config[name]) for name in node_config.keys()},
+                arrival_rate
+            )
+            st.session_state.ergodicity_valid = ergodicity_valid
+            st.session_state.changes_made = False  # Reset changes_made flag
+            if ergodicity_valid:
+                st.success("All nodes satisfy the ergodicity condition!")
+            else:
+                st.error("Ergodicity condition not satisfied for some nodes.")
+        except ValueError as e:
+            st.session_state.ergodicity_valid = False
+            st.error(str(e))
+
+    # Display a message if changes were made and ergodicity needs to be checked
+    if st.session_state.changes_made:
+        st.session_state.ergodicity_valid = False
+        st.warning("Changes were made. Please click 'Check Ergodicity' to validate the new configuration.")
+
+    # Run simulation button (enabled only if ergodicity condition is satisfied)
+    if st.sidebar.button("Run Simulation", disabled=not st.session_state.ergodicity_valid):
         st.write("### Simulation Results")
         st.write(f"Simulation Time: {sim_time}, Number of Processes: {num_processes}, Arrival Rate: {arrival_rate}")
         st.write(f"Transfer Delay Distribution: {transfer_delay_distribution}")
