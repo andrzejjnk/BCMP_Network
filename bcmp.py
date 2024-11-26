@@ -1,4 +1,3 @@
-# bcmp.py
 import simpy
 import random
 import numpy as np
@@ -27,7 +26,6 @@ def process(
     :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
     :param transfer_delay_params: Parameters for the transfer delay distribution.
     """
-    entry_time = env.now if current_node == "User" else None
 
     while current_node != "End":
         # Process the task at the current node
@@ -61,33 +59,31 @@ def process(
     nodes["End"].exit_times[name] = env.now
 
 
-
-
 def generate_processes(
     env: simpy.Environment,
     num_processes: int,
-    arrival_rate: float,
+    external_arrival_rate: float,
     nodes: dict,
     transfer_delay_distribution: str = "normal",
     transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001}
 ) -> None:
     """
     Generates new processes at random intervals based on a Poisson distribution.
-    
+
     :param env: The simulation environment.
     :param num_processes: Total number of processes to simulate.
-    :param arrival_rate: The rate (lambda) for the Poisson distribution.
+    :param external_arrival_rate: The rate (lambda) for the Poisson distribution.
     :param nodes: Dictionary of nodes in the network.
     """
     process_id = 1
     while process_id <= num_processes:
         process_type = random.choice(["user", "system"])  # Randomly choose process type
-        yield env.timeout(np.random.poisson(1 / arrival_rate))  # Poisson inter-arrival times
+        yield env.timeout(np.random.poisson(1 / external_arrival_rate))  # Poisson inter-arrival times
         env.process(
             process(
                 env,
                 f"Process-{process_id}",
-                process_type, 
+                process_type,
                 "User",
                 nodes,
                 transfer_delay_distribution,
@@ -97,19 +93,50 @@ def generate_processes(
         process_id += 1
 
 
-def check_ergodicity(nodes: dict, arrival_rate: float) -> bool:
+def calculate_total_arrival_rates(nodes: dict, external_arrival_rate: float) -> dict:
+    """
+    Calculate the total arrival rates to each node, including external and internal arrivals.
+
+    :param nodes: Dictionary of Node objects.
+    :param external_arrival_rate: External arrival rate to the network.
+    :return: Dictionary of total arrival rates to each node.
+    """
+    total_arrival_rates = {name: 0 for name in nodes.keys()}
+    total_arrival_rates["User"] = external_arrival_rate
+
+    # Initialize a dictionary to store the arrival rates from other nodes
+    internal_arrival_rates = {name: 0 for name in nodes.keys()}
+
+    # Calculate the internal arrival rates
+    for node_name, node in nodes.items():
+        if node.queue_type == "FIFO":
+            for next_node, prob in transition_matrix[node_name]["user"].items():
+                internal_arrival_rates[next_node] += node.lambda_value * prob
+            for next_node, prob in transition_matrix[node_name]["system"].items():
+                internal_arrival_rates[next_node] += node.lambda_value * prob
+
+    # Add the internal arrival rates to the total arrival rates
+    for node_name in nodes.keys():
+        total_arrival_rates[node_name] += internal_arrival_rates[node_name]
+
+    return total_arrival_rates
+
+
+def check_ergodicity(nodes: dict, external_arrival_rate: float) -> bool:
     """
     Checks if the ergodicity condition is satisfied for FIFO nodes in the network.
     If the ergodicity condition is satisfied for each FIFO node then the system is stable.
 
     :param nodes: Dictionary of Node objects type FIFO.
-    :param arrival_rate: Overall arrival rate (lambda) for processes in the network.
+    :param external_arrival_rate: Overall arrival rate (lambda) for processes in the network.
     :return: None. Raises ValueError if any node violates the ergodicity condition.
     """
+    total_arrival_rates = calculate_total_arrival_rates(nodes, external_arrival_rate)
+
     for name, node in nodes.items():
         if node.queue_type == "FIFO":
             # Calculate intensity (rho) for the FIFO node
-            rho = arrival_rate / (node.lambda_value * node.num_servers)
+            rho = total_arrival_rates[name] / (node.lambda_value * node.num_servers)
 
             if rho >= 1:
                 st.error(
@@ -123,7 +150,7 @@ def check_ergodicity(nodes: dict, arrival_rate: float) -> bool:
 def run_simulation(
     sim_time: int,
     num_processes: int,
-    arrival_rate: float,
+    external_arrival_rate: float,
     transfer_delay_distribution: str = "normal",
     transfer_delay_params: dict = {"mean": 0.001, "std": 0.0001},
 ) -> None:
@@ -132,7 +159,7 @@ def run_simulation(
 
     :param sim_time: The total simulation time.
     :param num_processes: The number of processes to simulate.
-    :param arrival_rate: The rate at which new processes arrive in the system.
+    :param external_arrival_rate: The rate at which new processes arrive in the system.
     :param transfer_delay_distribution: The distribution used for transfer delay ("normal", "exponential", "uniform").
     :param transfer_delay_params: Parameters for the transfer delay distribution.
     """
@@ -145,7 +172,7 @@ def run_simulation(
         generate_processes(
             env,
             num_processes,
-            arrival_rate,
+            external_arrival_rate,
             nodes,
             transfer_delay_distribution=transfer_delay_distribution,
             transfer_delay_params=transfer_delay_params

@@ -26,7 +26,7 @@ def main():
     # Sidebar inputs for simulation parameters
     sim_time = st.sidebar.number_input("Simulation Time", min_value=100, max_value=5000, step=50, value=1000)
     num_processes = st.sidebar.number_input("Number of Processes", min_value=50, max_value=5000, step=50, value=1000)
-    arrival_rate = st.sidebar.number_input("Arrival Rate (Processes entering to the system/Unit Time)", min_value=0.01, max_value=100.0, step=0.01, value=10.0, on_change=lambda: st.session_state.update({"changes_made": True})
+    external_arrival_rate = st.sidebar.number_input("External Arrival Rate (Processes entering to the system/Unit Time)", min_value=0.01, max_value=100.0, step=0.01, value=10.0, on_change=lambda: st.session_state.update({"changes_made": True})
 )
 
     # Sidebar inputs for transfer delay distribution
@@ -123,7 +123,7 @@ def main():
         try:
             ergodicity_valid = check_ergodicity(
                 {name: Node(None, name, **node_config[name]) for name in node_config.keys()},
-                arrival_rate
+                external_arrival_rate
             )
             st.session_state.ergodicity_valid = ergodicity_valid
             st.session_state.changes_made = False  # Reset changes_made flag
@@ -143,7 +143,7 @@ def main():
     # Run simulation button (enabled only if ergodicity condition is satisfied)
     if st.sidebar.button("Run Simulation", disabled=not st.session_state.ergodicity_valid):
         st.write("### Simulation Results")
-        st.write(f"Simulation Time: {sim_time}, Number of Processes: {num_processes}, Arrival Rate: {arrival_rate}")
+        st.write(f"Simulation Time: {sim_time}, Number of Processes: {num_processes}, External Arrival Rate: {external_arrival_rate}")
         st.write(f"Transfer Delay Distribution: {transfer_delay_distribution}")
         st.write(f"Transfer Delay Parameters: {transfer_delay_params}")
 
@@ -151,7 +151,7 @@ def main():
         results = run_simulation(
             sim_time=sim_time,
             num_processes=num_processes,
-            arrival_rate=arrival_rate,
+            external_arrival_rate=external_arrival_rate,
             transfer_delay_distribution=transfer_delay_distribution,
             transfer_delay_params=transfer_delay_params,
         )
